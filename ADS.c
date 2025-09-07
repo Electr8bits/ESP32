@@ -1,6 +1,6 @@
 #include "ADS1X15.h"
 
-ADS1115 ADS(0x48);  // Dirección I2C por defecto (0x48)
+ADS1115 ADS(0x48);  // Dirección 12C
 
 void setup() 
 {
@@ -10,7 +10,6 @@ void setup()
 
 void loop() 
 {
-  // Variables para cada canal
   //int16_t porque toma los valores -32768 a +32767
   int16_t val0 = ADS.readADC(0);  // Canal A0
   int16_t val1 = ADS.readADC(1);  // Canal A1
