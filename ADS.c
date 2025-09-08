@@ -1,24 +1,44 @@
-#include "ADS1X15.h"
+#include <Wire.h>
+#include <Adafruit_ADS1X15.h>
 
-ADS1115 ADS(0x48);  // Dirección 12C
+Adafruit_ADS1115 ads;  
 
-void setup() 
+const float Fc = 0.000125;  // V/bit con GAIN_ONE (±4.096 V)
+
+// Variables para cada canal
+float volt0, volt1, volt2, volt3;
+
+void setup(void) 
 {
   Serial.begin(115200);
-  ADS.begin();
+  Serial.println("Iniciando ADS1115...");
+
+  if (!ads.begin()) {
+    Serial.println("No se encontró el ADS1115, revisa las conexiones!");
+    while (1);
+  }
+
+  ads.setGain(GAIN_ONE);  // ±4.096 V
 }
 
-void loop() 
+void loop(void) 
 {
-  //int16_t porque toma los valores -32768 a +32767
-  int16_t val0 = ADS.readADC(0);  // Canal A0
-  int16_t val1 = ADS.readADC(1);  // Canal A1
-  int16_t val2 = ADS.readADC(2);  // Canal A2
-  int16_t val3 = ADS.readADC(3);  // Canal A3
+  for (int ch = 0; ch < 4; ch++) 
+  {
+    int16_t lectura_adc = ads.readADC_SingleEnded(ch);
+    float voltage = lectura_adc * Fc;
 
-  //Mostrar en el monitor serial
-  Serial.print("A0: "); 
-  Serial.print(val0);
+    if (ch == 0) volt0 = voltage;
+    else if (ch == 1) volt1 = voltage;
+    else if (ch == 2) volt2 = voltage;
+    else if (ch == 3) volt3 = voltage;
+  }
 
-  delay(1000);  // 1s
+  // Imprime las variables
+  Serial.print("A0: "); Serial.print(volt0, 2); Serial.print(" V  ");
+  Serial.print("A1: "); Serial.print(volt1, 2); Serial.print(" V  ");
+  Serial.print("A2: "); Serial.print(volt2, 2); Serial.print(" V  ");
+  Serial.print("A3: "); Serial.print(volt3, 2); Serial.println(" V");
+
+  delay(1000);
 }
