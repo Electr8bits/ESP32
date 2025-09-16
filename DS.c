@@ -4,10 +4,14 @@
 RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Domingo", "Lunes", "Martes","Miércoles", "Jueves", "Viernes", "Sábado"};
 
+const int led2 = 2; // Pin del LED
+
 void setup() 
 {
   Serial.begin(57600);
   Wire.begin();
+  pinMode(led2, OUTPUT); // Configuramos el LED como salida
+
   if (!rtc.begin()) 
   {
     Serial.println("No se encuentra el RTC");
@@ -38,6 +42,13 @@ void loop()
   Serial.print(':');
   Serial.print(now.second(), DEC);
   Serial.println();
+
+  // --- Condicional LED ---
+  if (now.second() < 10) {  // Durante los primeros 10 segundos del minuto
+    digitalWrite(led2, HIGH); // Enciende LED
+  } else {
+    digitalWrite(led2, LOW);  // Apaga LED
+  }
 
   delay(1000);
 }
