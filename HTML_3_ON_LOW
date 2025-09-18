@@ -1,0 +1,84 @@
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebSrv.h>
+
+const char* ssid = "MAJU 2.4G";
+const char* password = "luhanaevaluna";
+
+// Pines de cada salida
+const int pinLed    = 2;   // LED
+const int pinToma1  = 4;   // Tomacorriente 1 (relé)
+const int pinToma2  = 5;   // Tomacorriente 2 (relé)
+
+// Variables para guardar estado (false=apagado, true=encendido)
+bool estadoLed = false;
+bool estadoToma1 = false;
+bool estadoToma2 = false;
+
+AsyncWebServer server(80);
+
+void setup() {
+  // Configurar pines como salidas y apagar todo al inicio (HIGH = apagado para relé)
+  pinMode(pinLed, OUTPUT);   digitalWrite(pinLed, HIGH);   // apagado
+  pinMode(pinToma1, OUTPUT); digitalWrite(pinToma1, HIGH); // apagado
+  pinMode(pinToma2, OUTPUT); digitalWrite(pinToma2, HIGH); // apagado
+
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando");
+  while (WiFi.status() != WL_CONNECTED) {Serial.print("."); delay(500);}
+  Serial.println("\nConectado!");
+  Serial.print("IP: ");Serial.println(WiFi.localIP());
+
+  // Página principal
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
+    html += "<style>body{font-family:Arial;text-align:center;}button{padding:10px 20px;margin:10px;font-size:16px;border:none;border-radius:5px;} .on{background:#4CAF50;color:white;} .off{background:#f44336;color:white;}</style>";
+    html += "<script>";
+    html += "function toggle(dev){fetch('/toggle?dev='+dev).then(r=>r.text()).then(t=>{document.getElementById(dev).innerHTML=t;document.getElementById(dev).className=(t.includes('Encendido')?'on':'off');});}";
+    html += "</script></head><body>";
+    html += "<h1>Panel de Control</h1>";
+
+    html += "<button id='led' class='" + String(estadoLed ? "on" : "off") + "' onclick=\"toggle('led')\">" + String(estadoLed ? "LED Encendido" : "LED Apagado") + "</button><br>";
+
+    html += "<button id='toma1' class='" + String(estadoToma1 ? "on" : "off") + "' onclick=\"toggle('toma1')\">" + String(estadoToma1 ? "Tomacorriente 1 Encendido" : "Tomacorriente 1 Apagado") + "</button><br>";
+
+    html += "<button id='toma2' class='" + String(estadoToma2 ? "on" : "off") + "' onclick=\"toggle('toma2')\">" + String(estadoToma2 ? "Tomacorriente 2 Encendido" : "Tomacorriente 2 Apagado") + "</button><br>";
+
+    html += "</body></html>";
+    request->send(200, "text/html", html);
+  });
+
+  // Ruta única para cambiar estado
+  server.on("/toggle", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (request->hasParam("dev")) {
+      String dev = request->getParam("dev")->value();
+      String respuesta;
+
+      if (dev == "led") {
+        estadoLed = !estadoLed;
+        digitalWrite(pinLed, estadoLed ? LOW : HIGH); // LOW=encendido, HIGH=apagado
+        respuesta = estadoLed ? "LED Encendido" : "LED Apagado";
+      } else if (dev == "toma1") {
+        estadoToma1 = !estadoToma1;
+        digitalWrite(pinToma1, estadoToma1 ? LOW : HIGH); // invertido
+        respuesta = estadoToma1 ? "Tomacorriente 1 Encendido" : "Tomacorriente 1 Apagado";
+      } else if (dev == "toma2") {
+        estadoToma2 = !estadoToma2;
+        digitalWrite(pinToma2, estadoToma2 ? LOW : HIGH); // invertido
+        respuesta = estadoToma2 ? "Tomacorriente 2 Encendido" : "Tomacorriente 2 Apagado";
+      } else {
+        respuesta = "Dispositivo desconocido";
+      }
+      request->send(200, "text/plain", respuesta);
+    } else {
+      request->send(400, "text/plain", "Parámetro dev faltante");
+    }
+  });
+
+  server.begin();
+}
+
+void loop() {
+  // Nada aquí
+}
