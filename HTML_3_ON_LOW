@@ -1,44 +1,73 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebSrv.h>
+#include <Wire.h>
+#include "RTClib.h"
 
+// --- WiFi ---
 const char* ssid = "MAJU 2.4G";
 const char* password = "luhanaevaluna";
 
-// Pines de cada salida
+// --- Pines de cada salida ---
 const int pinLuz    = 25;   // Luz
 const int pinToma1  = 26;   // Tomacorriente 1 (relé)
 const int pinToma2  = 27;   // Tomacorriente 2 (relé)
+const int led2      = 2;    // LED extra
 
-// Variables para guardar estado (false=apagado, true=encendido)
+// --- Variables de estado ---
 bool estadoLuz = false;
 bool estadoToma1 = false;
 bool estadoToma2 = false;
+
+// --- RTC ---
+RTC_DS3231 rtc;
+char daysOfTheWeek[7][12] = {"Domingo", "Lunes", "Martes","Miércoles", "Jueves", "Viernes", "Sábado"};
+String horaRTC = ""; // aquí guardamos la hora
 
 AsyncWebServer server(80);
 
 void setup() 
 {
   // Configurar pines como salidas y apagar todo al inicio (HIGH = apagado para relé)
-  pinMode(pinLuz, OUTPUT);   digitalWrite(pinLuz, HIGH);   // apagado
-  pinMode(pinToma1, OUTPUT); digitalWrite(pinToma1, HIGH); // apagado
-  pinMode(pinToma2, OUTPUT); digitalWrite(pinToma2, HIGH); // apagado
+  pinMode(pinLuz, OUTPUT);   digitalWrite(pinLuz, HIGH);   
+  pinMode(pinToma1, OUTPUT); digitalWrite(pinToma1, HIGH); 
+  pinMode(pinToma2, OUTPUT); digitalWrite(pinToma2, HIGH); 
+  pinMode(led2, OUTPUT);     digitalWrite(led2, LOW);
 
   Serial.begin(115200);
+
+  // --- Iniciar WiFi ---
   WiFi.begin(ssid, password);
   Serial.print("Conectando");
   while (WiFi.status() != WL_CONNECTED) {Serial.print("."); delay(500);}
   Serial.println("\nConectado!");
   Serial.print("IP: ");Serial.println(WiFi.localIP());
 
+  // --- Iniciar RTC ---
+  Wire.begin();
+  if (!rtc.begin()) 
+  {
+    Serial.println("No se encuentra el RTC");
+    while (1) delay(10);
+  }
+  if (rtc.lostPower()) 
+  {
+    Serial.println("RTC sin hora, ajustar la fecha/hora");
+    // rtc.adjust(DateTime(2025, 9, 16, 2, 44, 30)); // ejemplo
+  }
+
   // Página principal
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<style>body{font-family:Arial;text-align:center;}button{padding:10px 20px;margin:10px;font-size:16px;border:none;border-radius:5px;} .on{background:#4CAF50;color:white;} .off{background:#f44336;color:white;}</style>";
     html += "<script>";
+    // script para botones
     html += "function toggle(dev){fetch('/toggle?dev='+dev).then(r=>r.text()).then(t=>{document.getElementById(dev).innerHTML=t;document.getElementById(dev).className=(t.includes('ON')?'on':'off');});}";
+    // script para hora cada segundo
+    html += "setInterval(()=>{fetch('/hora').then(r=>r.text()).then(t=>{document.getElementById('hora').innerHTML=t;});},1000);";
     html += "</script></head><body>";
     html += "<h1>Panel de Control</h1>";
+    html += "<h2>Hora RTC: <span id='hora'>--:--:--</span></h2>";
 
     if (estadoLuz) {
       html += "<button id='luz' class='on' onclick=\"toggle('luz')\">Luz ON</button><br>";
@@ -108,9 +137,27 @@ void setup()
     }
   });
 
+  // Ruta para la hora del RTC
+  server.on("/hora", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", horaRTC);
+  });
+
   server.begin();
 }
 
 void loop() {
-  // Nada aquí
+  // leer RTC y actualizar hora
+  DateTime now = rtc.now();
+  horaRTC = String(now.hour()) + ":" +
+            (now.minute()<10?"0":"") + String(now.minute()) + ":" +
+            (now.second()<10?"0":"") + String(now.second());
+
+  // --- Condicional LED2 --- (ejemplo: encender primeros 10 segundos)
+  if (now.second() < 10) {  
+    digitalWrite(led2, HIGH); 
+  } else {
+    digitalWrite(led2, LOW);  
+  }
+
+  delay(1000); // cada segundo
 }
