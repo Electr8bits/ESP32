@@ -28,12 +28,12 @@ String horaRTC = "";
 Adafruit_ADS1115 ads;
 const float Fc = 0.000125;  // V/bit con GAIN_ONE (±4.096 V)
 float voltCorriente1 = 0, voltCorriente2 = 0, voltVoltaje = 0;
+float corrienteTotal = 0;
 
 AsyncWebServer server(80);
 
 void setup() 
 {
-  // Pines
   pinMode(pinLuz, OUTPUT);   digitalWrite(pinLuz, HIGH);
   pinMode(pinToma1, OUTPUT); digitalWrite(pinToma1, HIGH);
   pinMode(pinToma2, OUTPUT); digitalWrite(pinToma2, HIGH);
@@ -51,7 +51,6 @@ void setup()
   // RTC
   Wire.begin();
   if (!rtc.begin()) { Serial.println("No se encuentra el RTC"); while (1) delay(10); }
-
   if (rtc.lostPower()) { Serial.println("RTC sin hora, ajustar la fecha/hora"); }
 
   // ADS1115
@@ -105,6 +104,7 @@ void setup()
   server.on("/medidas", HTTP_GET, [](AsyncWebServerRequest *request){
     String datos = "Corriente Toma1: " + String(voltCorriente1,2) + " V<br>";
     datos += "Corriente Toma2: " + String(voltCorriente2,2) + " V<br>";
+    datos += "Corriente Total: " + String(corrienteTotal,2) + " V<br>";
     datos += "Voltaje: " + String(voltVoltaje,2) + " V<br>";
     request->send(200, "text/html", datos);
   });
@@ -118,12 +118,15 @@ void loop() {
   horaRTC = String(now.hour()) + ":" + (now.minute()<10?"0":"") + String(now.minute()) + ":" + (now.second()<10?"0":"") + String(now.second());
 
   // Leer ADS1115
-  voltCorriente1 = ads.readADC_SingleEnded(0) * Fc; // A0 -> Corriente Toma1
-  voltCorriente2 = ads.readADC_SingleEnded(1) * Fc; // A1 -> Corriente Toma2
-  voltVoltaje    = ads.readADC_SingleEnded(2) * Fc; // A2 -> Voltaje
+  voltCorriente1 = ads.readADC_SingleEnded(0) * Fc;
+  voltCorriente2 = ads.readADC_SingleEnded(1) * Fc;
+  voltVoltaje    = ads.readADC_SingleEnded(2) * Fc;
+
+  // Corriente total
+  corrienteTotal = voltCorriente1 + voltCorriente2;
 
   // LED2 ejemplo
   digitalWrite(led2, now.second()<10 ? HIGH : LOW);
 
-  delay(500); // lectura rápida
+  delay(500);
 }
