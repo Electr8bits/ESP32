@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include "RTClib.h"
 #include <Adafruit_ADS1X15.h>
+#include <ESPmDNS.h>   // <<< añadido para mDNS
 
 // --- WiFi ---
 const char* ssid = "MAJU 2.4G";
@@ -60,6 +61,13 @@ void setup()
   Serial.println("\nConectado!");
   Serial.print("IP: "); Serial.println(WiFi.localIP());
 
+  // >>> mDNS para dominio .local <<<
+  if (!MDNS.begin("integrador")) {
+    Serial.println("Error iniciando mDNS");
+  } else {
+    Serial.println("mDNS iniciado: http://integrador.local");
+  }
+
   // RTC
   Wire.begin();
   if (!rtc.begin()) { Serial.println("No se encuentra el RTC"); while (1) delay(10); }
@@ -107,12 +115,11 @@ void setup()
     request->send(200, "text/html", html);
   });
 
-  // Toggle salidas con autenticación
+  // Toggle salidas
   server.on("/toggle", HTTP_GET, [](AsyncWebServerRequest *request){
     if(!request->authenticate(usuario, clave)){
       return request->requestAuthentication();
     }
-
     String respuesta = "Error";
     if (request->hasParam("dev")) {
       String dev = request->getParam("dev")->value();
@@ -146,29 +153,21 @@ void setup()
 }
 
 void loop() {
-  // Hora
   DateTime now = rtc.now();
   horaRTC = String(now.hour()) + ":" + (now.minute()<10?"0":"") + String(now.minute()) + ":" + (now.second()<10?"0":"") + String(now.second());
 
-  // Leer ADS1115
   voltCorriente1 = ads.readADC_SingleEnded(0) * Fc; // A
   voltCorriente2 = ads.readADC_SingleEnded(1) * Fc; // A
   voltVoltaje    = ads.readADC_SingleEnded(2) * Fc; // V
-
-  // Corriente total
   corrienteTotal = voltCorriente1 + voltCorriente2;
 
-  // --- Cálculo energía y costo ---
   unsigned long ahoraMillis = millis();
   float dt_horas = (ahoraMillis - ultimoMillis) / 3600000.0; // delta t en horas
   ultimoMillis = ahoraMillis;
 
-  // Potencia instantánea en W
   float potenciaW = voltVoltaje * corrienteTotal;
-  // Acumular energía
   energia_kWh += (potenciaW * dt_horas) / 1000.0; // W*h → kWh
 
-  // Precio según segundo actual + estado
   float precio;
   if (now.second() < 20) {
     precio = 0.5; // tarifa pico
@@ -179,7 +178,6 @@ void loop() {
   }
   costoSoles = energia_kWh * precio;
 
-  // LED2 ejemplo
   digitalWrite(led2, now.second()<20 ? HIGH : LOW);
 
   delay(500);
